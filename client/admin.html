@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Admin - Shoe Store</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="container">
+  <header class="row">
+    <h1>Admin Panel</h1>
+    <nav class="row gap">
+      <a href="shoes.html">Catalog</a>
+      <button id="logout">Logout</button>
+    </nav>
+  </header>
+
+  <section class="card">
+    <h2>Add Shoe</h2>
+    <form id="addForm" class="row gap wrap">
+      <input id="model" placeholder="Model (e.g., Air Force 1)" required>
+      <input id="brand" placeholder="Brand (e.g., Nike)" required>
+      <input id="country" placeholder="Country (e.g., USA)">
+      <input id="category" placeholder="Category (e.g., sneakers)">
+      <input id="color" placeholder="Color (e.g., white)">
+      <input id="sizes" placeholder="Sizes (comma) e.g. 40,41,42">
+      <input id="price" placeholder="Price" type="number" min="0" required>
+      <input id="stock" placeholder="Stock" type="number" min="0" required>
+      <button>Add</button>
+    </form>
+    <pre id="msg" class="msg"></pre>
+  </section>
+
+  <section class="card">
+    <h2>Shoes (manage stock / delete)</h2>
+    <div id="shoes" class="grid"></div>
+  </section>
+
+  <section class="card">
+    <h2>Orders (change status)</h2>
+    <div class="row gap wrap">
+      <select id="statusFilter">
+        <option value="">All</option>
+        <option value="pending">pending</option>
+        <option value="paid">paid</option>
+        <option value="shipped">shipped</option>
+        <option value="completed">completed</option>
+        <option value="cancelled">cancelled</option>
+      </select>
+      <button id="reloadOrders">Reload</button>
+    </div>
+    <div id="orders" class="stack" style="margin-top:12px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Analytics (Aggregation)</h2>
+    <button id="topSold">Load Top Sold</button>
+    <div id="analytics" class="stack" style="margin-top:12px"></div>
+  </section>
+
+  <script type="module">
+    import { apiFetch, requireLogin, logout, getUser, escapeHtml } from "./app.js";
+    requireLogin();
+
+    const u = getUser();
+    if (!u || u.role !== "admin") location.href = "shoes.html";
+
+    document.getElementById("logout").onclick = logout;
+
+    async function loadShoes() {
+      const r = await apiFetch("/api/shoes?page=1&limit=20&sort=new");
+      const el = document.getElementById("shoes");
+      el.innerHTML = "";
+      r.items.forEach(s => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${escapeHtml(s.model)}</h3>
+          <p class="muted">${escapeHtml(s.brand?.name || "")} • ${escapeHtml(s.category || "")}</p>
+          <p>Price: <b>${s.price}</b> | Stock: <b>${s.stock_quantity}</b></p>
+          <div class="row gap wrap">
+            <input data-inc="${s._id}" type="number" value="1" style="width:90px">
+            <button data-add="${s._id}">+ stock</button>
+            <button data-sub="${s._id}">- stock</button>
+            <button data-del="${s._id}">Delete</button>
+          </div>
+        `;
+        el.appendChild(card);
+      });
+
+      el.onclick = async (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+
+        const idAdd = t.getAttribute("data-add");
+        const idSub = t.getAttribute("data-sub");
+        const idDel = t.getAttribute("data-del");
+
+        try {
+          if (idAdd || idSub) {
+            const inp = el.querySelector(`input[data-inc="${idAdd || idSub}"]`);
+            const val = Number(inp?.value || 1);
+            const delta = idAdd ? val : -val;
+            await apiFetch(`/api/shoes/${idAdd || idSub}/stock`, { method:"PATCH", body: JSON.stringify({ delta }) });
+            await loadShoes();
+          } else if (idDel) {
+            await apiFetch(`/api/shoes/${idDel}`, { method:"DELETE" });
+            await loadShoes();
+          }
+        } catch (err) {
+          document.getElementById("msg").textContent = err.message;
+        }
+      };
+    }
+
+    document.getElementById("addForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        model: document.getElementById("model").value.trim(),
+        brand: {
+          name: document.getElementById("brand").value.trim(),
+          country: document.getElementById("country").value.trim()
+        },
+        category: document.getElementById("category").value.trim() || "sneakers",
+        color: document.getElementById("color").value.trim(),
+        sizes: (document.getElementById("sizes").value || "40,41,42").split(",").map(x => Number(x.trim())).filter(Boolean),
+        price: Number(document.getElementById("price").value),
+        stock_quantity: Number(document.getElementById("stock").value)
+      };
+
+      try {
+        await apiFetch("/api/shoes", { method:"POST", body: JSON.stringify(payload) });
+        document.getElementById("msg").textContent = "Added ✅";
+        e.target.reset();
+        await loadShoes();
+      } catch (err) {
+        document.getElementById("msg").textContent = err.message;
+      }
+    });
+
+    async function loadOrders() {
+      const status = document.getElementById("statusFilter").value;
+      const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+      const r = await apiFetch(`/api/orders${qs}`);
+      const el = document.getElementById("orders");
+      el.innerHTML = "";
+      r.items.forEach(o => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="row">
+            <span><b>Status:</b> <span class="badge">${o.status}</span></span>
+            <span class="muted">Total: ${o.total_price}</span>
+            <span class="muted">${new Date(o.createdAt).toLocaleString()}</span>
+          </div>
+          <div class="muted small">Customer: ${escapeHtml(o.customerSnapshot?.fullName || "")} • ${escapeHtml(o.customerSnapshot?.phone || "")}</div>
+          <ul>${o.items.map(it => `<li>${escapeHtml(it.model)} • size ${it.size} • qty ${it.quantity} • ${it.price_at_purchase}</li>`).join("")}</ul>
+          <div class="row gap wrap">
+            <select data-sel="${o._id}">
+              ${["pending","paid","shipped","completed","cancelled"].map(s => `<option value="${s}" ${s===o.status?"selected":""}>${s}</option>`).join("")}
+            </select>
+            <button data-up="${o._id}">Update status</button>
+          </div>
+        `;
+        el.appendChild(card);
+      });
+
+      el.onclick = async (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const id = t.getAttribute("data-up");
+        if (!id) return;
+
+        const sel = el.querySelector(`select[data-sel="${id}"]`);
+        const status = sel?.value;
+
+        try {
+          await apiFetch(`/api/orders/${id}/status`, { method:"PATCH", body: JSON.stringify({ status }) });
+          await loadOrders();
+        } catch (err) {
+          document.getElementById("msg").textContent = err.message;
+        }
+      };
+    }
+
+    document.getElementById("reloadOrders").onclick = loadOrders;
+
+    document.getElementById("topSold").onclick = async () => {
+      const box = document.getElementById("analytics");
+      box.innerHTML = "";
+      try {
+        const data = await apiFetch("/api/analytics/top-sold?limit=5");
+        data.forEach(x => {
+          const div = document.createElement("div");
+          div.className = "card";
+          div.innerHTML = `<b>${escapeHtml(x.model)}</b> <span class="muted">(${escapeHtml(x.brand)})</span><div>Sold: ${x.sold}</div>`;
+          box.appendChild(div);
+        });
+      } catch (err) {
+        document.getElementById("msg").textContent = err.message;
+      }
+    };
+
+    // initial
+    await loadShoes();
+    await loadOrders();
+  </script>
+</body>
+</html>

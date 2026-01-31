@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Orders - Shoe Store</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="container">
+  <header class="row">
+    <h1>My Orders</h1>
+    <nav class="row gap">
+      <a href="shoes.html">Catalog</a>
+      <button id="logout">Logout</button>
+    </nav>
+  </header>
+
+  <div id="list" class="stack"></div>
+  <pre id="msg" class="msg"></pre>
+
+  <script type="module">
+    import { apiFetch, requireLogin, logout } from "./app.js";
+    requireLogin();
+
+    async function load() {
+      try {
+        const orders = await apiFetch("/api/orders/my");
+        const el = document.getElementById("list");
+        el.innerHTML = "";
+
+        for (const o of orders) {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="row">
+              <span><b>Status:</b> <span class="badge">${o.status}</span></span>
+              <span class="muted">Total: ${o.total_price}</span>
+              <span class="muted">${new Date(o.createdAt).toLocaleString()}</span>
+            </div>
+            <ul>${o.items.map(it => `<li>${it.model} • size ${it.size} • qty ${it.quantity} • ${it.price_at_purchase}</li>`).join("")}</ul>
+          `;
+          el.appendChild(card);
+        }
+      } catch (e) {
+        document.getElementById("msg").textContent = e.message;
+      }
+    }
+
+    document.getElementById("logout").onclick = logout;
+    load();
+  </script>
+</body>
+</html>

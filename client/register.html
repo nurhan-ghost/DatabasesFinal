@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShoeStore — Register</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <div>ShoeStore</div>
+      </div>
+      <div class="nav-actions">
+        <a class="btn" href="./login.html">Back to login</a>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-top">
+        <div>
+          <h1>Create account</h1>
+          <p>Register and start ordering sneakers.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card col-6">
+        <div class="card-h">
+          <div>
+            <div class="card-title">Register</div>
+            <div class="card-sub">Customer profile saved in MongoDB</div>
+          </div>
+        </div>
+
+        <div class="card-b">
+          <form id="registerForm">
+            <label class="label">Full name</label>
+            <input class="input" id="fullName" required />
+
+            <label class="label">Email</label>
+            <input class="input" id="email" type="email" required />
+
+            <div class="row">
+              <div>
+                <label class="label">Phone</label>
+                <input class="input" id="phone" />
+              </div>
+              <div>
+                <label class="label">Address</label>
+                <input class="input" id="address" />
+              </div>
+            </div>
+
+            <label class="label">Password</label>
+            <input class="input" id="password" type="password" required />
+
+            <div class="hr"></div>
+            <button class="btn primary wide" type="submit">Create account</button>
+          </form>
+
+          <pre id="msg" class="msg"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">
+    <div class="t" id="toastT"></div>
+    <div class="m" id="toastM"></div>
+  </div>
+
+  <script type="module">
+    import { apiFetch, setToken, saveUser } from "./app.js";
+
+    const msg = document.getElementById("msg");
+    const form = document.getElementById("registerForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+
+      const payload = {
+        fullName: document.getElementById("fullName").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        phone: document.getElementById("phone").value.trim(),
+        address: document.getElementById("address").value.trim(),
+        password: document.getElementById("password").value
+      };
+
+      try {
+        const r = await apiFetch("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        setToken(r.token);
+        saveUser(r.user);
+
+        // после регистрации кидаем в каталог
+        location.href = "shoes.html";
+      } catch (err) {
+        msg.textContent = err?.message || String(err);
+      }
+    });
+  </script>
+</body>
+</html>

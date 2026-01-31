@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Shoe - Shoe Store</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="container">
+  <header class="row">
+    <a href="shoes.html">← Back</a>
+    <a href="orders.html">My Orders</a>
+  </header>
+
+  <div id="box" class="card"></div>
+  <pre id="msg" class="msg"></pre>
+
+  <script type="module">
+    import { apiFetch, requireLogin, escapeHtml } from "./app.js";
+    requireLogin();
+
+    const id = new URLSearchParams(location.search).get("id");
+
+    async function load() {
+      try {
+        const s = await apiFetch(`/api/shoes/${id}`);
+        render(s);
+      } catch (e) {
+        document.getElementById("msg").textContent = e.message;
+      }
+    }
+
+    function render(s) {
+      const box = document.getElementById("box");
+      box.innerHTML = `
+        <h1>${escapeHtml(s.model)}</h1>
+        <p class="muted">${escapeHtml(s.brand?.name || "")} • ${escapeHtml(s.category || "")} • ${escapeHtml(s.color || "")}</p>
+        <p>Price: <b>${s.price}</b></p>
+        <p>Stock: ${s.stock_quantity}</p>
+        <div class="row gap wrap">
+          <label>Size:
+            <select id="size">${(s.sizes || []).map(x => `<option value="${x}">${x}</option>`).join("")}</select>
+          </label>
+          <label>Qty:
+            <input id="qty" type="number" min="1" value="1" style="width:90px">
+          </label>
+          <button id="buy">Place Order</button>
+        </div>
+        <p class="small muted">Order will reduce stock using MongoDB $inc inside a transaction.</p>
+      `;
+
+      document.getElementById("buy").onclick = async () => {
+        const size = Number(document.getElementById("size").value);
+        const quantity = Number(document.getElementById("qty").value);
+
+        try {
+          await apiFetch("/api/orders", {
+            method: "POST",
+            body: JSON.stringify({ items: [{ shoeId: s._id, size, quantity }] })
+          });
+          location.href = "orders.html";
+        } catch (e) {
+          document.getElementById("msg").textContent = e.message;
+        }
+      };
+    }
+
+    load();
+  </script>
+</body>
+</html>

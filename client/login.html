@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShoeStore — Login</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <div>ShoeStore</div>
+      </div>
+      <div class="nav-actions">
+        <a class="btn" href="./register.html">Create account</a>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-top">
+        <div>
+          <h1>Welcome back</h1>
+          <p>Login to manage cart and orders.</p>
+        </div>
+        <span class="pill">API: http://localhost:5000</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card col-5">
+        <div class="card-h">
+          <div>
+            <div class="card-title">Login</div>
+            <div class="card-sub">Use admin or user account</div>
+          </div>
+        </div>
+
+        <div class="card-b">
+          <form id="loginForm">
+            <label class="label">Email</label>
+            <input class="input" id="email" type="email" required />
+
+            <label class="label">Password</label>
+            <input class="input" id="password" type="password" required />
+
+            <div class="hr"></div>
+            <button class="btn primary wide" type="submit">Login</button>
+          </form>
+
+          <pre id="msg" class="msg"></pre>
+
+          <div class="hr"></div>
+          <small>
+            Admin: admin@shoestore.local / Admin12345<br/>
+            User: user1@shoestore.local / User12345
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">
+    <div class="t" id="toastT"></div>
+    <div class="m" id="toastM"></div>
+  </div>
+
+  <script type="module">
+    import { apiFetch, setToken, saveUser } from "./app.js";
+
+    const msg = document.getElementById("msg");
+    const form = document.getElementById("loginForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      try {
+        const r = await apiFetch("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password })
+        });
+
+        setToken(r.token);
+        saveUser(r.user);
+
+        location.href = (r.user.role === "admin") ? "admin.html" : "shoes.html";
+      } catch (err) {
+        msg.textContent = err?.message || String(err);
+      }
+    });
+  </script>
+</body>
+</html>
